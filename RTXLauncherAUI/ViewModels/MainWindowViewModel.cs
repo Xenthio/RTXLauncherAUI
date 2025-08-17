@@ -67,6 +67,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		var updateService = new GarrysModUpdateService();
 		var packageInstallService = new PackageInstallService();
 		var patchingService = new PatchingService();
+		var mountingService = new MountingService();
 		var quickInstallService = new QuickInstallService(installService, gitHubService, packageInstallService, patchingService);
 
 
@@ -74,7 +75,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		Pages = new ObservableCollection<PageViewModel>
 		{
 			new SettingsViewModel(_settingsData, quickInstallService, _messenger),
-			new MountingViewModel(),
+			new MountingViewModel(mountingService, _messenger),
 			new AdvancedInstallViewModel(_messenger, gitHubService, packageInstallService, patchingService, installService, updateService), // Pass messenger
             new AboutViewModel(_messenger, gitHubService)             // Pass messenger
         };
