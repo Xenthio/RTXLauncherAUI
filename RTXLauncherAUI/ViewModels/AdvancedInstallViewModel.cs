@@ -1,30 +1,36 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RTXLauncherAUI.Services;
+using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace RTXLauncherAUI.ViewModels;
 
 public partial class AdvancedInstallViewModel : PageViewModel
 {
-	[ObservableProperty] private string? _vanillaInstallPath = "C:/.../GarrysMod";
-	[ObservableProperty] private string? _vanillaInstallType = "gmod_x86-64";
-	[ObservableProperty] private string? _rtxInstallPath = "C:/.../GarrysModRTX";
-	[ObservableProperty] private string? _rtxInstallType = "gmod_x86-64_rtx";
+	[ObservableProperty] private string? _vanillaInstallPath = "Error Fetching Path";
+	[ObservableProperty] private string? _vanillaInstallType = "Error Fetching Install Type";
+	[ObservableProperty] private string? _rtxInstallPath = "Error Fetching Path";
+	[ObservableProperty] private string? _rtxInstallType = "Error Fetching Install Type";
 	[ObservableProperty] private bool _isBusy;
+	private readonly GitHubService _githubService;
 
 	// THE SCALABLE LIST OF PACKAGES
 	public ObservableCollection<InstallablePackageViewModel> Packages { get; } = new();
 
-	public AdvancedInstallViewModel() // In a real app, you'd inject services here
+	public AdvancedInstallViewModel()
 	{
 		Header = "Advanced Install";
 
+		_githubService = new GitHubService();
+
 		// To add a new package, you just add it to this list!
-		Packages.Add(new RemixPackageViewModel());
-		Packages.Add(new PatcherPackageViewModel());
-		Packages.Add(new FixesPackageViewModel());
-		Packages.Add(new OptiScalerPackageViewModel());
+		Packages.Add(new RemixPackageViewModel(_githubService));
+		Packages.Add(new PatcherPackageViewModel(_githubService));
+		Packages.Add(new FixesPackageViewModel(_githubService));
+		Packages.Add(new OptiScalerPackageViewModel(_githubService));
 
 		// Initialize all packages
 		_ = InitializePackages();
@@ -82,26 +88,42 @@ public partial class AdvancedInstallViewModel : PageViewModel
 
 public partial class RemixPackageViewModel : InstallablePackageViewModel
 {
-	public RemixPackageViewModel() { Title = "NVIDIA RTX Remix"; }
-
+	public RemixPackageViewModel(GitHubService githubService) : base(githubService)
+	{
+		Title = "NVIDIA RTX Remix";
+	}
 	protected override async Task LoadSources()
 	{
 		// In a real app, this would come from a service or config file
-		Sources.Add("(OFFICIAL) NVIDIAGameWorks/rtx-remix");
+		Sources.Add("NVIDIAGameWorks/rtx-remix");
 		Sources.Add("sambow23/dxvk-remix-gmod");
 	}
 
 	protected override async Task LoadReleases()
 	{
+		if (string.IsNullOrEmpty(SelectedSource)) return;
+
 		IsBusy = true;
 		Releases.Clear();
-		// TODO: Call your GitHubService to fetch releases for the SelectedSource
-		// and populate the Releases collection.
-		// For now, we'll add placeholder data.
-		Releases.Add(new GitHubRelease { Name = "v0.4.1" });
-		Releases.Add(new GitHubRelease { Name = "v0.4.0" });
-		SelectedRelease = Releases.Count > 0 ? Releases[0] : null;
-		IsBusy = false;
+		try
+		{
+			var parts = SelectedSource.Split('/');
+			var releases = await GitHubService.FetchReleasesAsync(parts[0], parts[1]);
+			foreach (var release in releases)
+			{
+				Releases.Add(release);
+			}
+			SelectedRelease = Releases.FirstOrDefault();
+		}
+		catch (Exception ex)
+		{
+			// You can add an error message property to display in the UI
+			System.Diagnostics.Debug.WriteLine($"Failed to load releases for {Title}: {ex.Message}");
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 
 	protected override async Task Install()
@@ -115,7 +137,7 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 
 public partial class PatcherPackageViewModel : InstallablePackageViewModel
 {
-	public PatcherPackageViewModel()
+	public PatcherPackageViewModel(GitHubService githubService) : base(githubService)
 	{
 		Title = "Binary Patches";
 		ButtonText = "Apply Patches"; // Custom button text
@@ -128,7 +150,7 @@ public partial class PatcherPackageViewModel : InstallablePackageViewModel
 
 public partial class FixesPackageViewModel : InstallablePackageViewModel
 {
-	public FixesPackageViewModel() { Title = "Fixes Package"; }
+	public FixesPackageViewModel(GitHubService githubService) : base(githubService) { Title = "Fixes Package"; }
 	protected override Task LoadSources() { /* ... Load fixes sources ... */ return Task.CompletedTask; }
 	protected override Task LoadReleases() { /* ... Load fixes releases ... */ return Task.CompletedTask; }
 	protected override async Task Install() { /* ... Call PackageInstallService ... */ }
@@ -136,15 +158,8 @@ public partial class FixesPackageViewModel : InstallablePackageViewModel
 
 public partial class OptiScalerPackageViewModel : InstallablePackageViewModel
 {
-	public OptiScalerPackageViewModel() { Title = "AMD Support - OptiScaler"; }
+	public OptiScalerPackageViewModel(GitHubService githubService) : base(githubService) { Title = "AMD Support - OptiScaler"; }
 	protected override Task LoadSources() { /* ... Load OptiScaler sources ... */ return Task.CompletedTask; }
 	protected override Task LoadReleases() { /* ... Load OptiScaler releases ... */ return Task.CompletedTask; }
 	protected override async Task Install() { /* ... Call PackageInstallService ... */ }
-}
-
-// A placeholder for the GitHubRelease object
-public class GitHubRelease
-{
-	public string Name { get; set; } = string.Empty;
-	// Add other properties like Body, Assets, etc.
 }

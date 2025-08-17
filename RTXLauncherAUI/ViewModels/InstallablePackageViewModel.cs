@@ -1,5 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RTXLauncherAUI.Models;
+using RTXLauncherAUI.Services;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
@@ -8,6 +10,8 @@ namespace RTXLauncherAUI.ViewModels;
 // A base class for any package that can be installed from a GitHub source.
 public abstract partial class InstallablePackageViewModel : ViewModelBase
 {
+	protected readonly GitHubService GitHubService;
+
 	[ObservableProperty]
 	private string? _title;
 
@@ -29,6 +33,10 @@ public abstract partial class InstallablePackageViewModel : ViewModelBase
 
 	[ObservableProperty]
 	private GitHubRelease? _selectedRelease;
+	protected InstallablePackageViewModel(GitHubService githubService)
+	{
+		GitHubService = githubService;
+	}
 
 	// The command for the install button
 	[RelayCommand]

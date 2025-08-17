@@ -40,10 +40,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Models\" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <Compile Update="Views\AdvancedInstallView.axaml.cs">
 	    <DependentUpon>AdvancedInstallView.axaml</DependentUpon>
 	  </Compile>
