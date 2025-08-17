@@ -242,7 +242,7 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 			}
 
 			// Call the service with the appropriate configuration
-			await _installService.InstallGenericPackageAsync(SelectedRelease, installDir, PackageInstallService.DefaultIgnorePatterns, progress);
+			await _installService.InstallRemixPackageAsync(SelectedRelease, installDir, progress);
 		}
 		catch (Exception ex)
 		{
@@ -398,7 +398,7 @@ public partial class FixesPackageViewModel : InstallablePackageViewModel
 		try
 		{
 			var installDir = GarrysModUtility.GetThisInstallFolder();
-			await _installService.InstallGenericPackageAsync(SelectedRelease, installDir, PackageInstallService.DefaultIgnorePatterns, progress);
+			await _installService.InstallStandardPackageAsync(SelectedRelease, installDir, PackageInstallService.DefaultIgnorePatterns, progress);
 		}
 		catch (Exception ex)
 		{

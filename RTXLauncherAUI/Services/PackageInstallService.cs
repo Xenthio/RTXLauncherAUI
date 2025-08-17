@@ -57,17 +57,92 @@ bin/win64/usd_ms.dll
 		// GitHub API can sometimes reject requests without a User-Agent
 		_httpClient.DefaultRequestHeaders.Add("User-Agent", "RTXLauncher");
 	}
-
 	/// <summary>
-	/// Installs a standard package (like Remix or Fixes) by downloading and extracting a zip asset.
+	/// Installs RTX Remix, which has special logic for finding .trex/bin folders
+	/// and placing them in the correct 32-bit or 64-bit game directory.
 	/// </summary>
-	public async Task InstallGenericPackageAsync(GitHubRelease release, string installDir, string defaultIgnorePatterns, IProgress<InstallProgressReport> progress)
+	public async Task InstallRemixPackageAsync(GitHubRelease release, string installDir, IProgress<InstallProgressReport> progress)
 	{
 		var asset = FindBestReleaseAsset(release);
-		if (asset == null)
+		if (asset == null) throw new Exception("Could not find a suitable zip package in the release.");
+
+		string tempDir = Path.Combine(Path.GetTempPath(), $"RTXLauncherRemix_{Path.GetRandomFileName()}");
+		Directory.CreateDirectory(tempDir);
+
+		try
 		{
-			throw new Exception("Could not find a suitable zip package in the release.");
+			// --- 1. Download ---
+			string zipPath = Path.Combine(tempDir, asset.Name);
+			var downloadProgress = new Progress<DownloadProgressReport>(report =>
+			{
+				int percentage = report.TotalBytes > 0 ? (int)((double)report.BytesDownloaded / report.TotalBytes * 40) : 20;
+				progress.Report(new InstallProgressReport { Message = $"Downloading: {report.BytesDownloaded / 1048576}MB", Percentage = percentage });
+			});
+			await DownloadFileAsync(asset.BrowserDownloadUrl, zipPath, downloadProgress);
+
+			// --- 2. Extract to a temporary location for inspection ---
+			string extractTempDir = Path.Combine(tempDir, "extracted");
+			Directory.CreateDirectory(extractTempDir);
+			progress.Report(new InstallProgressReport { Message = "Extracting package for inspection...", Percentage = 45 });
+			ZipFile.ExtractToDirectory(zipPath, extractTempDir);
+
+			// --- 3. Determine correct source and destination paths ---
+			progress.Report(new InstallProgressReport { Message = "Analyzing package structure...", Percentage = 55 });
+			var installType = GarrysModUtility.GetInstallType(installDir);
+
+			string? sourcePath = null;
+			string? destPath = null;
+
+			// Find the deepest .trex or bin folder in the extracted contents
+			var trexFolder = Directory.GetDirectories(extractTempDir, "*.trex", SearchOption.AllDirectories).FirstOrDefault();
+			var binFolder = Directory.GetDirectories(extractTempDir, "bin", SearchOption.AllDirectories).FirstOrDefault();
+
+			if (installType == "gmod_x86-64" && trexFolder != null)
+			{
+				// Primary 64-bit case: .trex folder exists
+				sourcePath = trexFolder;
+				destPath = Path.Combine(installDir, "bin", "win64");
+				progress.Report(new InstallProgressReport { Message = "Found .trex folder for 64-bit install.", Percentage = 60 });
+			}
+			else if (binFolder != null)
+			{
+				// 32-bit case or fallback for 64-bit: bin folder exists
+				sourcePath = binFolder;
+				destPath = (installType == "gmod_x86-64")
+					? Path.Combine(installDir, "bin", "win64")
+					: Path.Combine(installDir, "bin");
+				progress.Report(new InstallProgressReport { Message = "Found bin folder for install.", Percentage = 60 });
+			}
+			else
+			{
+				throw new Exception("Remix package does not have a recognizable structure (missing 'bin' or '.trex' folder).");
+			}
+
+			Directory.CreateDirectory(destPath);
+
+			// --- 4. Copy the files from the determined source to the destination ---
+			var copyProgress = new Progress<InstallProgressReport>(report =>
+			{
+				progress.Report(new InstallProgressReport { Message = report.Message, Percentage = 60 + (int)(report.Percentage * 0.4) });
+			});
+			await CopyDirectoryWithProgress(sourcePath, destPath, true, copyProgress);
+
+			progress.Report(new InstallProgressReport { Message = "Remix installed successfully!", Percentage = 100 });
 		}
+		finally
+		{
+			if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+		}
+	}
+
+	/// <summary>
+	/// Installs a standard package (like Fixes) by extracting its contents directly into the install folder.
+	/// </summary>
+	public async Task InstallStandardPackageAsync(GitHubRelease release, string installDir, string defaultIgnorePatterns, IProgress<InstallProgressReport> progress)
+	{
+		// This method was previously named InstallGenericPackageAsync
+		var asset = FindBestReleaseAsset(release);
+		if (asset == null) throw new Exception("Could not find a suitable zip package in the release.");
 
 		string tempDir = Path.Combine(Path.GetTempPath(), $"RTXLauncherPkg_{Path.GetRandomFileName()}");
 		Directory.CreateDirectory(tempDir);
@@ -79,26 +154,21 @@ bin/win64/usd_ms.dll
 			var downloadProgress = new Progress<DownloadProgressReport>(report =>
 			{
 				int percentage = report.TotalBytes > 0 ? (int)((double)report.BytesDownloaded / report.TotalBytes * 50) : 25;
-				progress.Report(new InstallProgressReport { Message = $"Downloading: {report.BytesDownloaded / 1048576}MB / {report.TotalBytes / 1048576}MB", Percentage = percentage });
+				progress.Report(new InstallProgressReport { Message = $"Downloading: {report.BytesDownloaded / 1048576}MB", Percentage = percentage });
 			});
-
 			await DownloadFileAsync(asset.BrowserDownloadUrl, zipPath, downloadProgress);
 
 			var extractProgress = new Progress<InstallProgressReport>(report =>
 			{
 				progress.Report(new InstallProgressReport { Message = report.Message, Percentage = 50 + (report.Percentage / 2) });
 			});
-
 			await ExtractZipWithIgnoreAsync(zipPath, installDir, defaultIgnorePatterns, extractProgress);
 
 			progress.Report(new InstallProgressReport { Message = "Installation complete!", Percentage = 100 });
 		}
 		finally
 		{
-			if (Directory.Exists(tempDir))
-			{
-				Directory.Delete(tempDir, true);
-			}
+			if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
 		}
 	}
 
@@ -178,11 +248,48 @@ bin/win64/usd_ms.dll
 		var buffer = new byte[8192];
 		int bytesRead;
 
+		// --- THE CHANGE IS HERE ---
+
+		// 1. Keep track of the last percentage we reported.
+		int lastPercentageReported = -1;
+
 		while ((bytesRead = await downloadStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
 		{
 			await fileStream.WriteAsync(buffer, 0, bytesRead);
 			totalBytesRead += bytesRead;
-			progress.Report(new DownloadProgressReport { BytesDownloaded = totalBytesRead, TotalBytes = totalBytes });
+
+			if (totalBytes > 0)
+			{
+				// 2. Calculate the current percentage.
+				int currentPercentage = (int)((double)totalBytesRead / totalBytes * 100);
+
+				// 3. ONLY report progress if the percentage has changed since the last report.
+				if (currentPercentage > lastPercentageReported)
+				{
+					lastPercentageReported = currentPercentage;
+					progress.Report(new DownloadProgressReport
+					{
+						BytesDownloaded = totalBytesRead,
+						TotalBytes = totalBytes,
+						// We can also pass the percentage along in the report itself
+						// if the receiver needs it for remapping.
+						Percentage = currentPercentage
+					});
+				}
+			}
+			else
+			{
+				// For indeterminate downloads, we can't use percentage.
+				// A time-based throttle could be used here if needed, but it's more complex.
+				// For now, reporting on every read is acceptable as it's less common.
+				progress.Report(new DownloadProgressReport { BytesDownloaded = totalBytesRead, TotalBytes = totalBytes });
+			}
+		}
+
+		// Ensure the final 100% completion is always reported
+		if (lastPercentageReported < 100)
+		{
+			progress.Report(new DownloadProgressReport { BytesDownloaded = totalBytes, TotalBytes = totalBytes, Percentage = 100 });
 		}
 	}
 

@@ -31,13 +31,8 @@ public class PatchingService
 		progress.Report(new InstallProgressReport { Message = "Fetching patch definitions...", Percentage = 5 });
 		var patchFileContent = await FetchPatchFileContentAsync(owner, repo, filePath);
 
-		// The core patching logic is CPU-bound (byte array manipulation),
-		// so we run it on a background thread to keep the UI responsive.
 		await Task.Run(() =>
 		{
-			// This is the entire logic from your old PatchingSystem.ApplyPatches method,
-			// now refactored to use the IProgress interface.
-
 			progress.Report(new InstallProgressReport { Message = "Parsing patch definitions...", Percentage = 10 });
 			var (patches32, patches64) = PatchParser.ParsePatches(patchFileContent);
 
@@ -47,24 +42,22 @@ public class PatchingService
 			if (installType == "gmod_x86-64")
 			{
 				patchesToUse = patches64;
-				progress.Report(new InstallProgressReport { Message = "Detected 64-bit installation. Using 64-bit patches.", Percentage = 15 });
+				progress.Report(new InstallProgressReport { Message = "Detected 64-bit installation...", Percentage = 15 });
 			}
 			else if (installType == "gmod_main" || installType == "gmod_i386")
 			{
 				patchesToUse = patches32;
-				progress.Report(new InstallProgressReport { Message = "Detected 32-bit installation. Using 32-bit patches.", Percentage = 15 });
+				progress.Report(new InstallProgressReport { Message = "Detected 32-bit installation...", Percentage = 15 });
 			}
 			else
 			{
 				throw new Exception($"Patching is not supported for this installation type: {installType}");
 			}
 
-			// --- Loading files to be patched ---
 			var fileContents = new Dictionary<string, byte[]>();
 			var modifiedFiles = new Dictionary<string, byte[]>();
 			var missingFiles = new List<string>();
-
-			int fileCount = patchesToUse.Patches.Keys.Count;
+			var fileCount = patchesToUse.Patches.Keys.Count;
 			int currentFileIndex = 0;
 
 			foreach (string fileName in patchesToUse.Patches.Keys)
@@ -86,7 +79,6 @@ public class PatchingService
 				throw new FileNotFoundException($"Patching failed. Missing required files: {string.Join(", ", missingFiles)}");
 			}
 
-			// --- Applying patches in memory ---
 			progress.Report(new InstallProgressReport { Message = "Applying patches...", Percentage = 30 });
 			int totalPatches = patchesToUse.Patches.Sum(p => p.Value.Count);
 			int completedPatches = 0;
@@ -96,22 +88,45 @@ public class PatchingService
 				string fileName = filePair.Key;
 				var patches = filePair.Value;
 				byte[] currentFileContent = fileContents[fileName];
-				bool fileModified = false;
 
-
+				// ==========================================================
+				//      THIS IS THE CORRECTED LOGIC BLOCK
+				// ==========================================================
 				foreach (var patchData in patches)
 				{
-					bool patched = TryApplyPattern(fileName, currentFileContent, patchData, ref modifiedFiles, ref fileModified, patchData[1] as string, progress, completedPatches, totalPatches);
+					bool patched = false;
+
+					// A valid patchData is a list of [ patterns_list, patch_hex_string ]
+					if (patchData.Count >= 2 && patchData[0] is List<object> patterns && patchData[1] is string patchHex)
+					{
+						// Check if patterns is a list of lists (multiple patterns) or a single pattern list
+						if (patterns.Count > 0 && patterns[0] is List<object>)
+						{
+							// It's a list of multiple patterns, try each one until one succeeds.
+							foreach (var pattern in patterns.Cast<List<object>>())
+							{
+								if (TryApplyPattern(fileName, currentFileContent, pattern, ref modifiedFiles, patchHex, progress, completedPatches, totalPatches))
+								{
+									patched = true;
+									break; // Success, stop trying other patterns for this patch.
+								}
+							}
+						}
+						else
+						{
+							// It's a single pattern.
+							patched = TryApplyPattern(fileName, currentFileContent, patterns, ref modifiedFiles, patchHex, progress, completedPatches, totalPatches);
+						}
+					}
+
 					if (!patched)
 					{
-						// Log a warning but continue
 						progress.Report(new InstallProgressReport { Message = $"Warning: A patch for {fileName} was not applied (pattern not found).", Percentage = 30 + (int)((float)completedPatches / totalPatches * 60) });
 					}
 					completedPatches++;
 				}
 			}
 
-			// --- Writing modified files to disk ---
 			if (modifiedFiles.Count == 0)
 			{
 				progress.Report(new InstallProgressReport { Message = "Patching complete. No applicable patches found for your game files.", Percentage = 100 });
@@ -142,7 +157,6 @@ public class PatchingService
 			progress.Report(new InstallProgressReport { Message = $"Successfully patched {savedFiles} file(s). Backups are in {Path.GetFileName(backupDir)}.", Percentage = 100 });
 		});
 	}
-
 	// --- Private Helper Methods (Ported from your original code) ---
 
 	private async Task<string> FetchPatchFileContentAsync(string owner, string repo, string filePath)
@@ -154,12 +168,11 @@ public class PatchingService
 	/// <summary>
 	/// Try to apply a pattern to a file
 	/// </summary>
-	private static bool TryApplyPattern(
+	private bool TryApplyPattern(
 		string fileName,
 		byte[] fileContent,
 		List<object> pattern,
 		ref Dictionary<string, byte[]> modifiedFiles,
-		ref bool fileModified,
 		string patchHex,
 		IProgress<InstallProgressReport> progress,
 		int completedPatches,
@@ -286,8 +299,11 @@ public class PatchingService
 
 			// Apply patch
 			Buffer.BlockCopy(patchBytes, 0, modifiedFiles[fileName], position, patchBytes.Length);
-			fileModified = true;
 
+			if (!modifiedFiles.ContainsKey(fileName))
+			{
+				modifiedFiles[fileName] = (byte[])fileContent.Clone();
+			}
 			// Log the patch with user-friendly description
 			string description = GetPatchDescription(originalBytes, patchHex);
 

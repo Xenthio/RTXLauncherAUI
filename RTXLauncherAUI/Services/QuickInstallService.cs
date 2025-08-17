@@ -68,7 +68,7 @@ public class QuickInstallService
 		var latestRemix = remixReleases.OrderByDescending(r => r.PublishedAt).FirstOrDefault()
 			?? throw new Exception("Could not find any RTX Remix releases.");
 
-		await _packageInstallService.InstallGenericPackageAsync(latestRemix, installDir, PackageInstallService.DefaultIgnorePatterns, CreateSubProgress(35, 25));
+		await _packageInstallService.InstallRemixPackageAsync(latestRemix, installDir, CreateSubProgress(35, 25));
 
 		// Step 4: Apply recommended patches
 		progress.Report(new InstallProgressReport { Message = "Applying recommended patches...", Percentage = 60 });
@@ -86,7 +86,7 @@ public class QuickInstallService
 		var latestFixes = fixesReleases.OrderByDescending(r => r.PublishedAt).FirstOrDefault()
 			?? throw new Exception("Could not find any fixes packages.");
 
-		await _packageInstallService.InstallGenericPackageAsync(latestFixes, installDir, PackageInstallService.DefaultIgnorePatterns, CreateSubProgress(85, 15));
+		await _packageInstallService.InstallStandardPackageAsync(latestFixes, installDir, PackageInstallService.DefaultIgnorePatterns, CreateSubProgress(85, 15));
 
 		// Step 6: TODO - Process .launcherdependencies (can be added here later)
 

@@ -5,29 +5,138 @@ using RTXLauncherAUI.Models;
 using RTXLauncherAUI.Services;
 using RTXLauncherAUI.Utilities;
 using System;
+using System.IO;
 using System.Threading.Tasks;
-namespace RTXLauncherAUI.ViewModels; // Use a dedicated folder for ViewModels
 
-// Make it a partial class and inherit from ObservableObject
+namespace RTXLauncherAUI.ViewModels;
+
 public partial class SettingsViewModel : PageViewModel
 {
-	// The ViewModel HOLDS a reference to the Model.
-	private readonly SettingsData _settingsData;
-
+	// --- Services ---
 	private readonly QuickInstallService _quickInstallService;
 	private readonly IMessenger _messenger;
 
+	// --- The Model ---
+	// The ViewModel HOLDS a reference to the pure data Model.
+	private readonly SettingsData _settingsData;
+
+	// --- UI State Properties ---
 	[ObservableProperty] private bool _isQuickInstallVisible;
 	[ObservableProperty] private bool _isBusy;
 
-	public SettingsViewModel(SettingsData settingsData, QuickInstallService quickInstallService, IMessenger messenger)
+	public SettingsViewModel(
+		SettingsData settingsData, // The loaded settings are passed in
+		QuickInstallService quickInstallService,
+		IMessenger messenger)
 	{
 		Header = "Settings";
+		_settingsData = settingsData;
 		_quickInstallService = quickInstallService;
 		_messenger = messenger;
 
 		CheckInstallationStatus();
 	}
+
+	// ===================================================================
+	//      PROXIED PROPERTIES FROM THE SETTINGS DATA MODEL
+	// ===================================================================
+	// This pattern uses the powerful SetProperty overload from CommunityToolkit.Mvvm
+	// to update the underlying model while still raising the correct PropertyChanged event
+	// for the ViewModel's property, which updates the UI.
+
+	public bool UseCustomResolution
+	{
+		get => _settingsData.UseCustomResolution;
+		set => SetProperty(_settingsData.UseCustomResolution, value, _settingsData, (model, val) => model.UseCustomResolution = val);
+	}
+
+	public int Width
+	{
+		get => _settingsData.Width;
+		set => SetProperty(_settingsData.Width, value, _settingsData, (model, val) => model.Width = val);
+	}
+
+	public int Height
+	{
+		get => _settingsData.Height;
+		set => SetProperty(_settingsData.Height, value, _settingsData, (model, val) => model.Height = val);
+	}
+
+	public bool LoadWorkshopAddons
+	{
+		get => _settingsData.LoadWorkshopAddons;
+		set => SetProperty(_settingsData.LoadWorkshopAddons, value, _settingsData, (model, val) => model.LoadWorkshopAddons = val);
+	}
+
+	public bool DisableChromium
+	{
+		get => _settingsData.DisableChromium;
+		set => SetProperty(_settingsData.DisableChromium, value, _settingsData, (model, val) => model.DisableChromium = val);
+	}
+
+	public bool ConsoleEnabled
+	{
+		get => _settingsData.ConsoleEnabled;
+		set => SetProperty(_settingsData.ConsoleEnabled, value, _settingsData, (model, val) => model.ConsoleEnabled = val);
+	}
+
+	public bool DeveloperMode
+	{
+		get => _settingsData.DeveloperMode;
+		set => SetProperty(_settingsData.DeveloperMode, value, _settingsData, (model, val) => model.DeveloperMode = val);
+	}
+
+	public bool ToolsMode
+	{
+		get => _settingsData.ToolsMode;
+		set => SetProperty(_settingsData.ToolsMode, value, _settingsData, (model, val) => model.ToolsMode = val);
+	}
+
+	public int DXLevel
+	{
+		get => _settingsData.DXLevel;
+		set => SetProperty(_settingsData.DXLevel, value, _settingsData, (model, val) => model.DXLevel = val);
+	}
+
+	public string CustomLaunchOptions
+	{
+		get => _settingsData.CustomLaunchOptions;
+		set => SetProperty(_settingsData.CustomLaunchOptions, value, _settingsData, (model, val) => model.CustomLaunchOptions = val);
+	}
+
+	public string ManuallySpecifiedInstallPath
+	{
+		get => _settingsData.ManuallySpecifiedInstallPath;
+		set => SetProperty(_settingsData.ManuallySpecifiedInstallPath, value, _settingsData, (model, val) => model.ManuallySpecifiedInstallPath = val);
+	}
+	public bool RtxInstalled => RemixUtility.IsInstalled();
+
+	public bool RtxEnabled
+	{
+		get => RemixUtility.IsEnabled();
+		set
+		{
+			if (RemixUtility.IsEnabled() != value)
+			{
+				try
+				{
+					RemixUtility.SetEnabled(value);
+				}
+				catch (IOException ex)
+				{
+					// The ViewModel is responsible for showing the error!
+					_messenger.Send(new ProgressReportMessage(new Models.InstallProgressReport { Message = $"ERROR: {ex.Message}" }));
+				}
+
+				// Notify the UI that the property's value has changed.
+				OnPropertyChanged(nameof(RtxEnabled));
+			}
+		}
+	}
+
+	// ===================================================================
+	//      QUICK INSTALL LOGIC
+	// ===================================================================
 
 	public void CheckInstallationStatus()
 	{
@@ -68,50 +177,4 @@ public partial class SettingsViewModel : PageViewModel
 		}
 	}
 	private bool CanRunQuickInstall() => !IsBusy;
-
-	// --- Resolution GroupBox ---
-
-	// This will generate a public bool property named "UseCustomResolution"
-	[ObservableProperty]
-	private bool _useCustomResolution;
-
-	// This will generate a public int property named "Width"
-	[ObservableProperty]
-	private int _width = 1920;
-
-	// This will generate a public int property named "Height"
-	[ObservableProperty]
-	private int _height = 1080;
-
-
-	// --- Garry's Mod GroupBox ---
-
-	[ObservableProperty]
-	private bool _rtxInstalled; // Used to enable/disable the "RTX On" checkbox
-
-	[ObservableProperty]
-	private bool _loadWorkshopAddons = true;
-
-
-	// --- Miscellaneous Page ---
-
-	[ObservableProperty]
-	private bool _toolsMode;
-
-	[ObservableProperty]
-	private bool _disableChromium;
-
-	[ObservableProperty]
-	private int _dxLevel = 90;
-
-	[ObservableProperty]
-	private bool _consoleEnabled = true;
-
-	[ObservableProperty]
-	private bool _developerMode;
-
-	[ObservableProperty]
-	private string? _customLaunchOptions;
-
-	// You would continue this pattern for all other settings...
 }
