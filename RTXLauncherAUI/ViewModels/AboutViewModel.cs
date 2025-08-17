@@ -1,5 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using RTXLauncherAUI.Services;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
@@ -17,6 +19,9 @@ public class UpdateSource
 
 public partial class AboutViewModel : PageViewModel
 {
+	private readonly IMessenger _messenger;
+	private readonly GitHubService _gitHubService;
+
 	// --- Properties for Data Binding ---
 
 	[ObservableProperty]
@@ -37,8 +42,10 @@ public partial class AboutViewModel : PageViewModel
 	[ObservableProperty]
 	private bool _isCheckingForUpdates; // To disable buttons during operation
 
-	public AboutViewModel()
+	public AboutViewModel(IMessenger messenger, GitHubService gitHubService)
 	{
+		_messenger = messenger;
+		_gitHubService = gitHubService;
 		Header = "About";
 		// TODO: Move the logic from InitialiseUpdater() here.
 		// For example, get the current version from the assembly.

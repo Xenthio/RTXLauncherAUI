@@ -11,9 +11,13 @@ public class InstallProgressReport
 
 public class SymlinkFailedException : Exception
 {
-	public string TargetFile { get; }
-	public SymlinkFailedException(string message, string targetFile) : base(message)
+	public string TargetPath { get; }
+	public SymlinkFailedException(string message, string targetPath) : base(message)
 	{
-		TargetFile = targetFile;
+		TargetPath = targetPath;
+	}
+	public SymlinkFailedException(string message, string targetPath, Exception inner) : base(message, inner)
+	{
+		TargetPath = targetPath;
 	}
 }

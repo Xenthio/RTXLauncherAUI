@@ -1,6 +1,9 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using RTXLauncherAUI.Models;
 using RTXLauncherAUI.Services;
+using RTXLauncherAUI.Utilities;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -15,16 +18,22 @@ public partial class AdvancedInstallViewModel : PageViewModel
 	[ObservableProperty] private string? _rtxInstallPath = "Error Fetching Path";
 	[ObservableProperty] private string? _rtxInstallType = "Error Fetching Install Type";
 	[ObservableProperty] private bool _isBusy;
+	private readonly IMessenger _messenger;
 	private readonly GitHubService _githubService;
+	private readonly GarrysModInstallService _garrysModInstallService;
+	private readonly GarrysModUpdateService _garrysModUpdateService = new();
 
 	// THE SCALABLE LIST OF PACKAGES
 	public ObservableCollection<InstallablePackageViewModel> Packages { get; } = new();
 
-	public AdvancedInstallViewModel()
+	public AdvancedInstallViewModel(IMessenger messenger, GitHubService githubService)
 	{
 		Header = "Advanced Install";
 
-		_githubService = new GitHubService();
+		_githubService = githubService;
+		_garrysModInstallService = new GarrysModInstallService();
+		_garrysModUpdateService = new GarrysModUpdateService();
+		_messenger = messenger;
 
 		// To add a new package, you just add it to this list!
 		Packages.Add(new RemixPackageViewModel(_githubService));
@@ -67,13 +76,39 @@ public partial class AdvancedInstallViewModel : PageViewModel
 	private async Task CreateInstall()
 	{
 		IsBusy = true;
+
+		// Use the utility to get the paths
+		var vanillaPath = GarrysModUtility.GetVanillaInstallFolder();
+		var newInstallPath = GarrysModUtility.GetThisInstallFolder();
+
+		if (string.IsNullOrEmpty(vanillaPath))
+		{
+			// TODO: Show an error dialog to the user
+			IsBusy = false;
+			return;
+		}
+
+		// Set up progress reporting
+		var progress = new Progress<InstallProgressReport>(report =>
+		{
+			_messenger.Send(new ProgressReportMessage(report));
+		});
+
 		try
 		{
-			// TODO: Call your GarrysModInstallService to create the installation
-			// For example: await _installService.CreateRTXInstallAsync();
-
-			// Simulate work for now
-			await Task.Delay(2000);
+			await _garrysModInstallService.CreateNewGmodInstallAsync(vanillaPath, newInstallPath, progress);
+			// TODO: Show a "Success!" dialog
+		}
+		catch (SymlinkFailedException ex)
+		{
+			// This is where you handle the specific error.
+			// You would show a dialog asking the user if they want to retry as admin.
+			//InstallProgressText = $"Error: {ex.Message}";
+		}
+		catch (Exception ex)
+		{
+			// Handle all other installation errors
+			//InstallProgressText = $"An unexpected error occurred: {ex.Message}";
 		}
 		finally
 		{

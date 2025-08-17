@@ -8,6 +8,12 @@
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<AvaloniaNativeAotSingleFile>true</AvaloniaNativeAotSingleFile>
 	</PropertyGroup>
+	<ItemGroup>
+	  <None Remove="Assets\gmodrtx.png" />
+	</ItemGroup>
+	<ItemGroup>
+	  <AvaloniaResource Include="Assets\gmodrtx.png" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Avalonia" Version="11.3.0" />
