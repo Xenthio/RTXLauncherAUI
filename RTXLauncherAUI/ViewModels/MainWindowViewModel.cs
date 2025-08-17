@@ -18,9 +18,10 @@ public partial class MainWindowViewModel : ViewModelBase
 		Pages = new ObservableCollection<PageViewModel>
 		{
 			new SettingsViewModel { Header = "Settings" },
-            // new MountingViewModel { Header = "Content Mounting" }, // You would create these next
-            // new AboutViewModel { Header = "About" }
-        };
+			new MountingViewModel(),
+			new AdvancedInstallViewModel(),
+			new AboutViewModel()
+		};
 
 		// Set the default page to be the first one
 		_selectedPage = Pages[0];

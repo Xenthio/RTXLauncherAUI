@@ -5,7 +5,7 @@
              x:DataType="vm:SettingsViewModel">
 
 	<!-- This is the content you copied from the TabItem -->
-	<StackPanel Spacing="10">
+	<StackPanel Spacing="10" Margin="10">
 		<!-- Recreating the "Resolution" GroupBox -->
 		<Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="10">
 			<Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">

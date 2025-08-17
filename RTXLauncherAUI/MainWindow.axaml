@@ -6,19 +6,6 @@
         x:DataType="vm:MainWindowViewModel"
         Title="RTXLauncherAUI" Width="800" Height="550">
 
-	<!-- Define DataTemplates: This tells Avalonia which View to use for which ViewModel -->
-	<Window.DataTemplates>
-		<DataTemplate DataType="{x:Type vm:SettingsViewModel}">
-			<views:SettingsView/>
-		</DataTemplate>
-		<!-- You would add a DataTemplate for each page here -->
-		<!-- 
-        <DataTemplate DataType="{x:Type vm:MountingViewModel}">
-            <views:MountingView/>
-        </DataTemplate>
-        -->
-	</Window.DataTemplates>
-
 	<Grid RowDefinitions="*,Auto" Margin="10">
 
 		<!-- Main Content Area with Sidebar -->
@@ -26,9 +13,9 @@
 
 			<!-- Sidebar Navigation -->
 			<ListBox Grid.Column="0"
-                     ItemsSource="{Binding Pages}"
-                     SelectedItem="{Binding SelectedPage}"
-                     Width="150" Margin="0,0,10,0">
+					ItemsSource="{Binding Pages}"
+					SelectedItem="{Binding SelectedPage}"
+					Width="150" Margin="0,0,10,0">
 				<ListBox.ItemTemplate>
 					<DataTemplate>
 						<!-- The TextBlock binds to the "Header" property we created -->
@@ -39,7 +26,7 @@
 
 			<!-- Content Display Area -->
 			<Border Grid.Column="1"
-                    BorderBrush="Gray" BorderThickness="1" CornerRadius="3">
+				BorderBrush="Gray" BorderThickness="1" CornerRadius="3">
 				<!-- This ContentControl's content is bound to the SelectedPage -->
 				<!-- The DataTemplates above will determine what to display here -->
 				<ContentControl Content="{Binding SelectedPage}"/>

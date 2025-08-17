@@ -38,4 +38,14 @@
 		<NativeLibrary Include="user32.lib" />
 		<NativeLibrary Include="gdi32.lib" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Models\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Views\AdvancedInstallView.axaml.cs">
+	    <DependentUpon>AdvancedInstallView.axaml</DependentUpon>
+	  </Compile>
+	</ItemGroup>
 </Project>
