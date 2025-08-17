@@ -85,9 +85,18 @@
 		<!--               BOTTOM BUTTONS                  -->
 		<!-- ============================================= -->
 		<StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-			<Button Content="Open Install Folder"/>
-			<Button Content="Launch Game"/>
-			<Button Content="Close"/>
+			<Button Content="Open Install Folder"
+					Command="{Binding OpenInstallFolderCommand}"/>
+
+			<Button Content="Launch Game"
+					Command="{Binding LaunchGameCommand}"
+					CommandParameter="{Binding $parent[Window]}"/>
+			<!-- Pass the Window to the command -->
+
+			<Button Content="Close"
+					Command="{Binding CloseCommand}"
+					CommandParameter="{Binding $parent[Window]}"/>
+			<!-- Pass the Window to the command -->
 		</StackPanel>
 	</Grid>
 </Window>

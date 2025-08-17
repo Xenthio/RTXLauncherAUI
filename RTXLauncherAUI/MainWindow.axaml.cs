@@ -10,6 +10,9 @@ public partial class MainWindow : Window
 		InitializeComponent();
 
 		// The DataContext is now the main window's viewmodel
-		DataContext = new MainWindowViewModel();
+		var vm = new MainWindowViewModel();
+		DataContext = vm;
+
+		this.Closing += (sender, args) => vm.OnWindowClosing();
 	}
 }

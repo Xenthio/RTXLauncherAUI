@@ -1,10 +1,13 @@
 ﻿// ViewModels/MainWindowViewModel.cs
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging; // <-- Import the Messenger
 using RTXLauncherAUI.Models;
 using RTXLauncherAUI.Services;
+using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 namespace RTXLauncherAUI.ViewModels;
@@ -27,13 +30,19 @@ public partial class MainWindowViewModel : ViewModelBase
 	[ObservableProperty]
 	private bool _isLogVisible;
 
-	// --- Existing Properties ---
 	public ObservableCollection<PageViewModel> Pages { get; }
 	[ObservableProperty]
 	private PageViewModel? _selectedPage;
 
+	private readonly SettingsService _settingsService;
+	private readonly SettingsData _settingsData;
+
+
 	public MainWindowViewModel()
 	{
+		_settingsService = new SettingsService();
+		_settingsData = _settingsService.LoadSettings();
+
 		// Use the default singleton messenger instance
 		_messenger = WeakReferenceMessenger.Default;
 
@@ -56,12 +65,24 @@ public partial class MainWindowViewModel : ViewModelBase
 		var gitHubService = new GitHubService();
 		Pages = new ObservableCollection<PageViewModel>
 		{
-			new SettingsViewModel { Header = "Settings" },
+			new SettingsViewModel(_settingsData),
 			new MountingViewModel(),
 			new AdvancedInstallViewModel(_messenger, gitHubService), // Pass messenger
             new AboutViewModel(_messenger, gitHubService)             // Pass messenger
         };
 		_selectedPage = Pages.FirstOrDefault();
+	}
+	public void OnWindowClosing()
+	{
+		try
+		{
+			_settingsService.SaveSettings(_settingsData);
+		}
+		catch (IOException ex)
+		{
+			// Show an error to the user (via a dialog service in a real app)
+			_messenger.Send(new ProgressReportMessage(new InstallProgressReport { Message = $"ERROR: {ex.Message}" }));
+		}
 	}
 
 	[RelayCommand]
@@ -71,5 +92,59 @@ public partial class MainWindowViewModel : ViewModelBase
 		var logContent = string.Join("\n", FullLog);
 		// await dialogService.ShowSaveFileDialogAsync(logContent, "log.txt");
 		System.Diagnostics.Debug.WriteLine("---- LOG SAVED ----\n" + logContent);
+	}
+
+	[RelayCommand]
+	private void OpenInstallFolder()
+	{
+		try
+		{
+			LauncherUtility.OpenInstallFolder();
+		}
+		catch (Exception ex)
+		{
+			// Use the messenger to send an error to the UI to be displayed
+			_messenger.Send(new ProgressReportMessage(new Models.InstallProgressReport { Message = $"ERROR: {ex.Message}", Percentage = 100 }));
+		}
+	}
+
+	[RelayCommand]
+	private void LaunchGame(Window window) // Pass the window to get screen info
+	{
+		if (_settingsData == null)
+		{
+			_messenger.Send(new ProgressReportMessage(new Models.InstallProgressReport { Message = "ERROR: Settings could not be loaded.", Percentage = 100 }));
+			return;
+		}
+
+		try
+		{
+			var width = _settingsData.Width;
+			var height = _settingsData.Height;
+
+			// This logic is now in the ViewModel, which has access to UI-related info
+			if (width == 0 || height == 0)
+			{
+				var screen = window.Screens.Primary;
+				if (screen != null)
+				{
+					width = (int)screen.WorkingArea.Width;
+					height = (int)screen.WorkingArea.Height;
+				}
+			}
+
+			LauncherUtility.LaunchGame(_settingsData, width, height);
+		}
+		catch (Exception ex)
+		{
+			_messenger.Send(new ProgressReportMessage(new Models.InstallProgressReport { Message = $"ERROR: {ex.Message}", Percentage = 100 }));
+		}
+	}
+
+	[RelayCommand]
+	private void Close(Window window)
+	{
+		// The command receives the Window instance from the CommandParameter
+		window?.Close();
 	}
 }

@@ -21,3 +21,9 @@ public class SymlinkFailedException : Exception
 		TargetPath = targetPath;
 	}
 }
+
+public class DownloadProgressReport : InstallProgressReport
+{
+	public long BytesDownloaded { get; init; }
+	public long TotalBytes { get; init; }
+}

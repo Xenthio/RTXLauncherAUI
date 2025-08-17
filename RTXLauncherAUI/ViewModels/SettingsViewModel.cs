@@ -1,13 +1,19 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using RTXLauncherAUI.Models;
 namespace RTXLauncherAUI.ViewModels; // Use a dedicated folder for ViewModels
 
 // Make it a partial class and inherit from ObservableObject
 public partial class SettingsViewModel : PageViewModel
 {
-	// For every property you want to bind to, create a private field
-	// and annotate it with [ObservableProperty]. The source generator
-	// will automatically create a public property with the correct
-	// change notification logic.
+	// The ViewModel HOLDS a reference to the Model.
+	private readonly SettingsData _settingsData;
+
+	// We pass the model in via the constructor.
+	public SettingsViewModel(SettingsData settingsData)
+	{
+		Header = "Settings";
+		_settingsData = settingsData;
+	}
 
 	// --- Resolution GroupBox ---
 

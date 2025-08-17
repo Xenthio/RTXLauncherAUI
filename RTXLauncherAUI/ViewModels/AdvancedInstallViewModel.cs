@@ -7,6 +7,7 @@ using RTXLauncherAUI.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -22,6 +23,7 @@ public partial class AdvancedInstallViewModel : PageViewModel
 	private readonly IMessenger _messenger;
 	private readonly GitHubService _githubService;
 	private readonly GarrysModInstallService _garrysModInstallService;
+	private readonly PackageInstallService _packageInstallService;
 	private readonly GarrysModUpdateService _garrysModUpdateService = new();
 
 	// THE SCALABLE LIST OF PACKAGES
@@ -37,10 +39,10 @@ public partial class AdvancedInstallViewModel : PageViewModel
 		_messenger = messenger;
 
 		// To add a new package, you just add it to this list!
-		Packages.Add(new RemixPackageViewModel(_githubService));
+		Packages.Add(new RemixPackageViewModel(_githubService, _packageInstallService, _messenger));
 		Packages.Add(new PatcherPackageViewModel(_githubService));
-		Packages.Add(new FixesPackageViewModel(_githubService));
-		Packages.Add(new OptiScalerPackageViewModel(_githubService));
+		Packages.Add(new FixesPackageViewModel(_githubService, _packageInstallService, _messenger));
+		Packages.Add(new OptiScalerPackageViewModel(_githubService, _packageInstallService, _messenger));
 
 		// Initialize all packages
 		_ = InitializePackages();
@@ -154,6 +156,9 @@ public partial class AdvancedInstallViewModel : PageViewModel
 
 public partial class RemixPackageViewModel : InstallablePackageViewModel
 {
+	private readonly PackageInstallService _installService;
+	private readonly IMessenger _messenger;
+
 	// --- 1. Add your sources dictionary as a private field ---
 	private readonly Dictionary<string, (string Owner, string Repo)> _remixSources = new()
 	{
@@ -161,9 +166,12 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 		{ "sambow23/dxvk-remix-gmod", ("sambow23", "dxvk-remix-gmod") },
 	};
 
-	public RemixPackageViewModel(GitHubService githubService) : base(githubService)
+	public RemixPackageViewModel(GitHubService githubService, PackageInstallService installService, IMessenger messenger)
+		: base(githubService)
 	{
 		Title = "NVIDIA RTX Remix";
+		_installService = installService;
+		_messenger = messenger;
 	}
 
 	// --- 2. Implement LoadSources to read from the dictionary ---
@@ -210,11 +218,31 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 	protected override async Task Install()
 	{
 		if (SelectedRelease == null) return;
+
 		IsBusy = true;
-		System.Diagnostics.Debug.WriteLine($"Installing Remix: {SelectedRelease.Name}");
-		// TODO: Call your PackageInstallService here
-		await Task.Delay(2000);
-		IsBusy = false;
+		var progressHandler = new Progress<InstallProgressReport>(report => _messenger.Send(new ProgressReportMessage(report)));
+		IProgress<InstallProgressReport> progress = progressHandler;
+
+
+		try
+		{
+			var installDir = GarrysModUtility.GetThisInstallFolder();
+			if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir))
+			{
+				throw new Exception("Could not find a valid RTX GMod installation directory.");
+			}
+
+			// Call the service with the appropriate configuration
+			await _installService.InstallGenericPackageAsync(SelectedRelease, installDir, PackageInstallService.DefaultIgnorePatterns, progress);
+		}
+		catch (Exception ex)
+		{
+			progress.Report(new InstallProgressReport { Message = $"ERROR: {ex.Message}", Percentage = 100 });
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 }
 
@@ -257,19 +285,15 @@ public partial class PatcherPackageViewModel : InstallablePackageViewModel
 
 	protected override async Task Install()
 	{
-		if (string.IsNullOrEmpty(SelectedSource) || !_patchSources.TryGetValue(SelectedSource, out var sourceInfo)) return;
-
-		IsBusy = true;
-		System.Diagnostics.Debug.WriteLine($"Applying patches from: {SelectedSource}");
-		// TODO: Create a PatchingService and call it here, passing the sourceInfo
-		// For example: await _patchingService.ApplyPatchesAsync(sourceInfo.Owner, sourceInfo.Repo, sourceInfo.FilePath);
-		await Task.Delay(2000);
-		IsBusy = false;
+		if (SelectedRelease == null) return;
+		return;
 	}
 }
 
 public partial class FixesPackageViewModel : InstallablePackageViewModel
 {
+	private readonly PackageInstallService _installService;
+	private readonly IMessenger _messenger;
 	// --- 1. Add your sources dictionary ---
 	private readonly Dictionary<string, (string Owner, string Repo, string InstallType)> _packageSources = new()
 	{
@@ -277,9 +301,12 @@ public partial class FixesPackageViewModel : InstallablePackageViewModel
 		{ "Xenthio/RTXFixes (gmod_main)", ("Xenthio", "RTXFixes", "gmod_main") }
 	};
 
-	public FixesPackageViewModel(GitHubService githubService) : base(githubService)
+	public FixesPackageViewModel(GitHubService githubService, PackageInstallService installService, IMessenger messenger)
+		: base(githubService)
 	{
 		Title = "Fixes Package";
+		_installService = installService;
+		_messenger = messenger;
 	}
 
 	// --- 2. Implement LoadSources ---
@@ -327,25 +354,43 @@ public partial class FixesPackageViewModel : InstallablePackageViewModel
 	{
 		if (SelectedRelease == null) return;
 		IsBusy = true;
-		System.Diagnostics.Debug.WriteLine($"Installing Fixes: {SelectedRelease.Name}");
-		// TODO: Call your PackageInstallService here
-		await Task.Delay(2000);
-		IsBusy = false;
+
+		var progressHandler = new Progress<InstallProgressReport>(report => _messenger.Send(new ProgressReportMessage(report)));
+		IProgress<InstallProgressReport> progress = progressHandler;
+		try
+		{
+			var installDir = GarrysModUtility.GetThisInstallFolder();
+			await _installService.InstallGenericPackageAsync(SelectedRelease, installDir, PackageInstallService.DefaultIgnorePatterns, progress);
+		}
+		catch (Exception ex)
+		{
+			progress.Report(new InstallProgressReport { Message = $"ERROR: {ex.Message}", Percentage = 100 });
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 }
 
 public partial class OptiScalerPackageViewModel : InstallablePackageViewModel
 {
+	private readonly PackageInstallService _installService;
+	private readonly IMessenger _messenger;
 	// --- 1. Add your sources dictionary for OptiScaler ---
 	private readonly Dictionary<string, (string Owner, string Repo)> _optiScalerSources = new()
 	{
 		{ "sambow23/OptiScaler-Releases", ("sambow23", "OptiScaler-Releases") }
 	};
 
-	public OptiScalerPackageViewModel(GitHubService githubService) : base(githubService)
+	public OptiScalerPackageViewModel(GitHubService githubService, PackageInstallService installService, IMessenger messenger)
+		: base(githubService)
 	{
 		Title = "AMD Support - OptiScaler";
+		_installService = installService;
+		_messenger = messenger;
 	}
+
 
 	// --- 2. Implement LoadSources to read from the dictionary ---
 	protected override Task LoadSources()
@@ -391,10 +436,29 @@ public partial class OptiScalerPackageViewModel : InstallablePackageViewModel
 	protected override async Task Install()
 	{
 		if (SelectedRelease == null) return;
+
 		IsBusy = true;
-		System.Diagnostics.Debug.WriteLine($"Installing OptiScaler: {SelectedRelease.Name}");
-		// TODO: Call your PackageInstallService here
-		await Task.Delay(2000);
-		IsBusy = false;
+
+		var progressHandler = new Progress<InstallProgressReport>(report => _messenger.Send(new ProgressReportMessage(report)));
+		IProgress<InstallProgressReport> progress = progressHandler;
+		try
+		{
+			var installDir = GarrysModUtility.GetThisInstallFolder();
+			if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir))
+			{
+				throw new Exception("Could not find a valid RTX GMod installation directory.");
+			}
+
+			// Call the special-case installer method for OptiScaler
+			await _installService.InstallOptiScalerPackageAsync(SelectedRelease, installDir, progress);
+		}
+		catch (Exception ex)
+		{
+			progress.Report(new InstallProgressReport { Message = $"ERROR: {ex.Message}", Percentage = 100 });
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 }
