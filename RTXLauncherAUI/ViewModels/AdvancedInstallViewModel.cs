@@ -5,6 +5,7 @@ using RTXLauncherAUI.Models;
 using RTXLauncherAUI.Services;
 using RTXLauncherAUI.Utilities;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,10 +14,10 @@ namespace RTXLauncherAUI.ViewModels;
 
 public partial class AdvancedInstallViewModel : PageViewModel
 {
-	[ObservableProperty] private string? _vanillaInstallPath = "Error Fetching Path";
-	[ObservableProperty] private string? _vanillaInstallType = "Error Fetching Install Type";
-	[ObservableProperty] private string? _rtxInstallPath = "Error Fetching Path";
-	[ObservableProperty] private string? _rtxInstallType = "Error Fetching Install Type";
+	[ObservableProperty] private string _vanillaInstallPath = "Error Fetching Path";
+	[ObservableProperty] private string _vanillaInstallType = "Error Fetching Install Type";
+	[ObservableProperty] private string _rtxInstallPath = "Error Fetching Path";
+	[ObservableProperty] private string _rtxInstallType = "Error Fetching Install Type";
 	[ObservableProperty] private bool _isBusy;
 	private readonly IMessenger _messenger;
 	private readonly GitHubService _githubService;
@@ -43,6 +44,36 @@ public partial class AdvancedInstallViewModel : PageViewModel
 
 		// Initialize all packages
 		_ = InitializePackages();
+
+		RefreshInstallInfo();
+	}
+
+	private void RefreshInstallInfo()
+	{
+		// Refresh the install info
+
+		_vanillaInstallPath = GarrysModUtility.GetVanillaInstallFolder();
+		_vanillaInstallType = GarrysModUtility.GetInstallType(_vanillaInstallPath);
+
+		if (_vanillaInstallType == "unknown") _vanillaInstallType = "Not installed / not found";
+
+		_rtxInstallPath = GarrysModUtility.GetThisInstallFolder();
+		_rtxInstallType = GarrysModUtility.GetInstallType(_rtxInstallPath);
+
+		if (_rtxInstallType == "unknown")
+		{
+			_rtxInstallType = "There's no install here, create one!";
+			//CreateInstallButton.Enabled = true;
+			//UpdateInstallButton.Enabled = false;
+		}
+		else
+		{
+			//CreateInstallButton.Enabled = false;
+			//UpdateInstallButton.Enabled = true;
+		}
+
+		// Update visibility of the QuickInstallGroup
+		//UpdateQuickInstallGroupVisibility();
 	}
 
 	private async Task InitializePackages()
@@ -123,28 +154,44 @@ public partial class AdvancedInstallViewModel : PageViewModel
 
 public partial class RemixPackageViewModel : InstallablePackageViewModel
 {
+	// --- 1. Add your sources dictionary as a private field ---
+	private readonly Dictionary<string, (string Owner, string Repo)> _remixSources = new()
+	{
+		{ "(OFFICIAL) NVIDIAGameWorks/rtx-remix", ("NVIDIAGameWorks", "rtx-remix") },
+		{ "sambow23/dxvk-remix-gmod", ("sambow23", "dxvk-remix-gmod") },
+	};
+
 	public RemixPackageViewModel(GitHubService githubService) : base(githubService)
 	{
 		Title = "NVIDIA RTX Remix";
 	}
-	protected override async Task LoadSources()
+
+	// --- 2. Implement LoadSources to read from the dictionary ---
+	protected override Task LoadSources()
 	{
-		// In a real app, this would come from a service or config file
-		Sources.Add("NVIDIAGameWorks/rtx-remix");
-		Sources.Add("sambow23/dxvk-remix-gmod");
+		Sources.Clear();
+		foreach (var sourceName in _remixSources.Keys)
+		{
+			Sources.Add(sourceName);
+		}
+		return Task.CompletedTask;
 	}
 
+	// --- 3. Implement LoadReleases to use the selected source ---
 	protected override async Task LoadReleases()
 	{
-		if (string.IsNullOrEmpty(SelectedSource)) return;
+		if (string.IsNullOrEmpty(SelectedSource) || !_remixSources.TryGetValue(SelectedSource, out var sourceInfo))
+		{
+			Releases.Clear();
+			return;
+		}
 
 		IsBusy = true;
 		Releases.Clear();
 		try
 		{
-			var parts = SelectedSource.Split('/');
-			var releases = await GitHubService.FetchReleasesAsync(parts[0], parts[1]);
-			foreach (var release in releases)
+			var releases = await GitHubService.FetchReleasesAsync(sourceInfo.Owner, sourceInfo.Repo);
+			foreach (var release in releases.OrderByDescending(r => r.PublishedAt))
 			{
 				Releases.Add(release);
 			}
@@ -152,8 +199,7 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 		}
 		catch (Exception ex)
 		{
-			// You can add an error message property to display in the UI
-			System.Diagnostics.Debug.WriteLine($"Failed to load releases for {Title}: {ex.Message}");
+			System.Diagnostics.Debug.WriteLine($"[Remix] Failed to load releases: {ex.Message}");
 		}
 		finally
 		{
@@ -163,38 +209,192 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 
 	protected override async Task Install()
 	{
+		if (SelectedRelease == null) return;
 		IsBusy = true;
-		// TODO: Call your PackageInstallService to install the SelectedRelease
-		await Task.Delay(2000); // Simulate work
+		System.Diagnostics.Debug.WriteLine($"Installing Remix: {SelectedRelease.Name}");
+		// TODO: Call your PackageInstallService here
+		await Task.Delay(2000);
 		IsBusy = false;
 	}
 }
 
 public partial class PatcherPackageViewModel : InstallablePackageViewModel
 {
+	// --- 1. Add your sources dictionary ---
+	private readonly Dictionary<string, (string Owner, string Repo, string FilePath)> _patchSources = new()
+	{
+		{ "BlueAmulet/SourceRTXTweaks", ("BlueAmulet", "SourceRTXTweaks", "applypatch.py") },
+		{ "sambow23/SourceRTXTweaks", ("sambow23", "SourceRTXTweaks", "applypatch.py") },
+		{ "Xenthio/SourceRTXTweaks (outdated, here to test multiple repos)", ("Xenthio", "SourceRTXTweaks", "applypatch.py") }
+	};
+
 	public PatcherPackageViewModel(GitHubService githubService) : base(githubService)
 	{
 		Title = "Binary Patches";
-		ButtonText = "Apply Patches"; // Custom button text
+		ButtonText = "Apply Patches"; // Set a custom button text
 	}
 
-	protected override Task LoadSources() { /* ... Load patcher sources ... */ return Task.CompletedTask; }
-	protected override Task LoadReleases() { /* Patches don't have releases, so this might be empty */ return Task.CompletedTask; }
-	protected override async Task Install() { /* ... Call PatchingService ... */ }
+	// --- 2. Implement LoadSources ---
+	protected override Task LoadSources()
+	{
+		Sources.Clear();
+		foreach (var sourceName in _patchSources.Keys)
+		{
+			Sources.Add(sourceName);
+		}
+		return Task.CompletedTask;
+	}
+
+	// --- 3. Patches don't have releases, so this is empty ---
+	protected override Task LoadReleases()
+	{
+		// We can hide the "Releases" ComboBox in the UI for this package type
+		// by binding its IsVisible property to a boolean on this ViewModel.
+		// For now, we just do nothing.
+		Releases.Clear();
+		return Task.CompletedTask;
+	}
+
+	protected override async Task Install()
+	{
+		if (string.IsNullOrEmpty(SelectedSource) || !_patchSources.TryGetValue(SelectedSource, out var sourceInfo)) return;
+
+		IsBusy = true;
+		System.Diagnostics.Debug.WriteLine($"Applying patches from: {SelectedSource}");
+		// TODO: Create a PatchingService and call it here, passing the sourceInfo
+		// For example: await _patchingService.ApplyPatchesAsync(sourceInfo.Owner, sourceInfo.Repo, sourceInfo.FilePath);
+		await Task.Delay(2000);
+		IsBusy = false;
+	}
 }
 
 public partial class FixesPackageViewModel : InstallablePackageViewModel
 {
-	public FixesPackageViewModel(GitHubService githubService) : base(githubService) { Title = "Fixes Package"; }
-	protected override Task LoadSources() { /* ... Load fixes sources ... */ return Task.CompletedTask; }
-	protected override Task LoadReleases() { /* ... Load fixes releases ... */ return Task.CompletedTask; }
-	protected override async Task Install() { /* ... Call PackageInstallService ... */ }
+	// --- 1. Add your sources dictionary ---
+	private readonly Dictionary<string, (string Owner, string Repo, string InstallType)> _packageSources = new()
+	{
+		{ "Xenthio/gmod-rtx-fixes-2 (Any)", ("Xenthio", "gmod-rtx-fixes-2", "Any") },
+		{ "Xenthio/RTXFixes (gmod_main)", ("Xenthio", "RTXFixes", "gmod_main") }
+	};
+
+	public FixesPackageViewModel(GitHubService githubService) : base(githubService)
+	{
+		Title = "Fixes Package";
+	}
+
+	// --- 2. Implement LoadSources ---
+	protected override Task LoadSources()
+	{
+		Sources.Clear();
+		foreach (var sourceName in _packageSources.Keys)
+		{
+			Sources.Add(sourceName);
+		}
+		return Task.CompletedTask;
+	}
+
+	// --- 3. Implement LoadReleases ---
+	protected override async Task LoadReleases()
+	{
+		if (string.IsNullOrEmpty(SelectedSource) || !_packageSources.TryGetValue(SelectedSource, out var sourceInfo))
+		{
+			Releases.Clear();
+			return;
+		}
+
+		IsBusy = true;
+		Releases.Clear();
+		try
+		{
+			var releases = await GitHubService.FetchReleasesAsync(sourceInfo.Owner, sourceInfo.Repo);
+			foreach (var release in releases.OrderByDescending(r => r.PublishedAt))
+			{
+				Releases.Add(release);
+			}
+			SelectedRelease = Releases.FirstOrDefault();
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[Fixes] Failed to load releases: {ex.Message}");
+		}
+		finally
+		{
+			IsBusy = false;
+		}
+	}
+
+	protected override async Task Install()
+	{
+		if (SelectedRelease == null) return;
+		IsBusy = true;
+		System.Diagnostics.Debug.WriteLine($"Installing Fixes: {SelectedRelease.Name}");
+		// TODO: Call your PackageInstallService here
+		await Task.Delay(2000);
+		IsBusy = false;
+	}
 }
 
 public partial class OptiScalerPackageViewModel : InstallablePackageViewModel
 {
-	public OptiScalerPackageViewModel(GitHubService githubService) : base(githubService) { Title = "AMD Support - OptiScaler"; }
-	protected override Task LoadSources() { /* ... Load OptiScaler sources ... */ return Task.CompletedTask; }
-	protected override Task LoadReleases() { /* ... Load OptiScaler releases ... */ return Task.CompletedTask; }
-	protected override async Task Install() { /* ... Call PackageInstallService ... */ }
+	// --- 1. Add your sources dictionary for OptiScaler ---
+	private readonly Dictionary<string, (string Owner, string Repo)> _optiScalerSources = new()
+	{
+		{ "sambow23/OptiScaler-Releases", ("sambow23", "OptiScaler-Releases") }
+	};
+
+	public OptiScalerPackageViewModel(GitHubService githubService) : base(githubService)
+	{
+		Title = "AMD Support - OptiScaler";
+	}
+
+	// --- 2. Implement LoadSources to read from the dictionary ---
+	protected override Task LoadSources()
+	{
+		Sources.Clear();
+		foreach (var sourceName in _optiScalerSources.Keys)
+		{
+			Sources.Add(sourceName);
+		}
+		return Task.CompletedTask;
+	}
+
+	// --- 3. Implement LoadReleases to use the selected source ---
+	protected override async Task LoadReleases()
+	{
+		if (string.IsNullOrEmpty(SelectedSource) || !_optiScalerSources.TryGetValue(SelectedSource, out var sourceInfo))
+		{
+			Releases.Clear();
+			return;
+		}
+
+		IsBusy = true;
+		Releases.Clear();
+		try
+		{
+			var releases = await GitHubService.FetchReleasesAsync(sourceInfo.Owner, sourceInfo.Repo);
+			foreach (var release in releases.OrderByDescending(r => r.PublishedAt))
+			{
+				Releases.Add(release);
+			}
+			SelectedRelease = Releases.FirstOrDefault();
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[OptiScaler] Failed to load releases: {ex.Message}");
+		}
+		finally
+		{
+			IsBusy = false;
+		}
+	}
+
+	protected override async Task Install()
+	{
+		if (SelectedRelease == null) return;
+		IsBusy = true;
+		System.Diagnostics.Debug.WriteLine($"Installing OptiScaler: {SelectedRelease.Name}");
+		// TODO: Call your PackageInstallService here
+		await Task.Delay(2000);
+		IsBusy = false;
+	}
 }

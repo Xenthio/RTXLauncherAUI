@@ -6,7 +6,7 @@
 
 	<!-- This is the content you copied from the TabItem -->
 	<StackPanel Spacing="10" Margin="10">
-		<!-- Recreating the "Resolution" GroupBox -->
+		<!-- "Resolution" GroupBox -->
 		<Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="10">
 			<Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
 				<TextBlock Text="Resolution" FontWeight="Bold" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,10"/>
@@ -26,6 +26,18 @@
 				</Grid>
 			</Grid>
 		</Border>
-		<!-- other group boxes would go here -->
+		<Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="10">
+			<Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*">
+				<TextBlock Text="Garry's Mod" FontWeight="Bold" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,10"/>
+				
+				<CheckBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                          Content="Load Workshop Addons"
+                          IsChecked="{Binding LoadWorkshopAddons}"/>
+				
+				<CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,10,0,0"
+                          Content="RTX On"
+                          IsChecked="{Binding RtxInstalled}"/>
+			</Grid>
+		</Border>
 	</StackPanel>
 </UserControl>
