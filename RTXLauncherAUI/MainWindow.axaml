@@ -69,12 +69,12 @@
 			<!-- ** NEW: EXPANDABLE LOG VIEWER ** -->
 			<!-- This sits on top of the content area and is toggled by the button -->
 			<Border Grid.Column="1"
-                    Background="#DDFFFFFF"
-                    BorderBrush="Black" BorderThickness="1"
+					Background="#303030"
+                    BorderBrush="Gray" BorderThickness="1" CornerRadius="3"
                     IsVisible="{Binding IsLogVisible}">
 				<Grid RowDefinitions="*,Auto">
 					<!-- The Log List -->
-					<ListBox Grid.Row="0" ItemsSource="{Binding FullLog}" Margin="5"/>
+					<ListBox Grid.Row="0" ItemsSource="{Binding FullLog}" Margin="5" Background="Black" Foreground="LimeGreen" FontFamily="Consolas"/>
 					<!-- Save Button -->
 					<Button Grid.Row="1" Content="Save Log to File" Command="{Binding SaveLogCommand}" Margin="5"/>
 				</Grid>

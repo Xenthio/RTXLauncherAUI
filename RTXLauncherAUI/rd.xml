@@ -1,0 +1,6 @@
+﻿<linker>
+	<assembly fullname="RTXLauncherAUI">
+		<!-- This directive tells the trimmer: "Do not remove any types that live in the Views namespace" -->
+		<type fullname="RTXLauncherAUI.Views.*" preserve="all"/>
+	</assembly>
+</linker>

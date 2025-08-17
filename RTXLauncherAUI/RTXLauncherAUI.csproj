@@ -46,6 +46,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<TrimmerRootDescriptor Include="rd.xml" />
+	</ItemGroup>
+	
+	<ItemGroup>
 	  <Compile Update="Views\AdvancedInstallView.axaml.cs">
 	    <DependentUpon>AdvancedInstallView.axaml</DependentUpon>
 	  </Compile>

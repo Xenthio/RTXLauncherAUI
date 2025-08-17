@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
 
 		CarouselLog.Add("Welcome to the Garry's Mod RTX Launcher!");
+		FullLog.Add("Welcome to the Garry's Mod RTX Launcher!");
 
 		// --- Existing Page Setup ---
 		// Pass the messenger instance down to the page ViewModels
@@ -56,6 +57,7 @@ public partial class MainWindowViewModel : ViewModelBase
 		Pages = new ObservableCollection<PageViewModel>
 		{
 			new SettingsViewModel { Header = "Settings" },
+			new MountingViewModel(),
 			new AdvancedInstallViewModel(_messenger, gitHubService), // Pass messenger
             new AboutViewModel(_messenger, gitHubService)             // Pass messenger
         };
