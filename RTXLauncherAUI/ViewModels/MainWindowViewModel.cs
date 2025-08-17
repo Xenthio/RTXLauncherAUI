@@ -63,11 +63,19 @@ public partial class MainWindowViewModel : ViewModelBase
 		// --- Existing Page Setup ---
 		// Pass the messenger instance down to the page ViewModels
 		var gitHubService = new GitHubService();
+		var installService = new GarrysModInstallService();
+		var updateService = new GarrysModUpdateService();
+		var packageInstallService = new PackageInstallService();
+		var patchingService = new PatchingService();
+		var quickInstallService = new QuickInstallService(installService, gitHubService, packageInstallService, patchingService);
+
+
+
 		Pages = new ObservableCollection<PageViewModel>
 		{
-			new SettingsViewModel(_settingsData),
+			new SettingsViewModel(_settingsData, quickInstallService, _messenger),
 			new MountingViewModel(),
-			new AdvancedInstallViewModel(_messenger, gitHubService), // Pass messenger
+			new AdvancedInstallViewModel(_messenger, gitHubService, packageInstallService, patchingService, installService, updateService), // Pass messenger
             new AboutViewModel(_messenger, gitHubService)             // Pass messenger
         };
 		_selectedPage = Pages.FirstOrDefault();

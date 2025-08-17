@@ -24,23 +24,31 @@ public partial class AdvancedInstallViewModel : PageViewModel
 	private readonly GitHubService _githubService;
 	private readonly GarrysModInstallService _garrysModInstallService;
 	private readonly PackageInstallService _packageInstallService;
-	private readonly GarrysModUpdateService _garrysModUpdateService = new();
+	private readonly GarrysModUpdateService _garrysModUpdateService;
+	private readonly PatchingService _patchingService;
 
 	// THE SCALABLE LIST OF PACKAGES
 	public ObservableCollection<InstallablePackageViewModel> Packages { get; } = new();
 
-	public AdvancedInstallViewModel(IMessenger messenger, GitHubService githubService)
+	public AdvancedInstallViewModel(IMessenger messenger,
+				GitHubService githubService,
+				PackageInstallService packageInstallService,
+				PatchingService patchingService,
+				GarrysModInstallService installService,
+				GarrysModUpdateService updateService)
 	{
 		Header = "Advanced Install";
 
-		_githubService = githubService;
-		_garrysModInstallService = new GarrysModInstallService();
-		_garrysModUpdateService = new GarrysModUpdateService();
 		_messenger = messenger;
+		_githubService = githubService;
+		_packageInstallService = packageInstallService;
+		_patchingService = patchingService;
+		_garrysModInstallService = installService;
+		_garrysModUpdateService = updateService;
 
 		// To add a new package, you just add it to this list!
 		Packages.Add(new RemixPackageViewModel(_githubService, _packageInstallService, _messenger));
-		Packages.Add(new PatcherPackageViewModel(_githubService));
+		Packages.Add(new PatcherPackageViewModel(_patchingService, _messenger));
 		Packages.Add(new FixesPackageViewModel(_githubService, _packageInstallService, _messenger));
 		Packages.Add(new OptiScalerPackageViewModel(_githubService, _packageInstallService, _messenger));
 
@@ -137,6 +145,7 @@ public partial class AdvancedInstallViewModel : PageViewModel
 			// This is where you handle the specific error.
 			// You would show a dialog asking the user if they want to retry as admin.
 			//InstallProgressText = $"Error: {ex.Message}";
+
 		}
 		catch (Exception ex)
 		{
@@ -246,23 +255,29 @@ public partial class RemixPackageViewModel : InstallablePackageViewModel
 	}
 }
 
+// In a file like ViewModels/Packages/PatcherPackageViewModel.cs
+
 public partial class PatcherPackageViewModel : InstallablePackageViewModel
 {
-	// --- 1. Add your sources dictionary ---
+	private readonly PatchingService _patchingService;
+	private readonly IMessenger _messenger;
+
 	private readonly Dictionary<string, (string Owner, string Repo, string FilePath)> _patchSources = new()
 	{
 		{ "BlueAmulet/SourceRTXTweaks", ("BlueAmulet", "SourceRTXTweaks", "applypatch.py") },
 		{ "sambow23/SourceRTXTweaks", ("sambow23", "SourceRTXTweaks", "applypatch.py") },
-		{ "Xenthio/SourceRTXTweaks (outdated, here to test multiple repos)", ("Xenthio", "SourceRTXTweaks", "applypatch.py") }
-	};
+        // ... other sources
+    };
 
-	public PatcherPackageViewModel(GitHubService githubService) : base(githubService)
+	public PatcherPackageViewModel(PatchingService patchingService, IMessenger messenger)
+		: base(null) // It doesn't use GitHubService for releases, so we pass null.
 	{
 		Title = "Binary Patches";
-		ButtonText = "Apply Patches"; // Set a custom button text
+		ButtonText = "Apply Patches";
+		_patchingService = patchingService;
+		_messenger = messenger;
 	}
 
-	// --- 2. Implement LoadSources ---
 	protected override Task LoadSources()
 	{
 		Sources.Clear();
@@ -273,20 +288,43 @@ public partial class PatcherPackageViewModel : InstallablePackageViewModel
 		return Task.CompletedTask;
 	}
 
-	// --- 3. Patches don't have releases, so this is empty ---
 	protected override Task LoadReleases()
 	{
-		// We can hide the "Releases" ComboBox in the UI for this package type
-		// by binding its IsVisible property to a boolean on this ViewModel.
-		// For now, we just do nothing.
 		Releases.Clear();
-		return Task.CompletedTask;
+		return Task.CompletedTask; // Patches don't have releases.
 	}
 
 	protected override async Task Install()
 	{
-		if (SelectedRelease == null) return;
-		return;
+		if (string.IsNullOrEmpty(SelectedSource))
+		{
+			_messenger.Send(new ProgressReportMessage(new InstallProgressReport { Message = "ERROR: No patch source selected." }));
+			return;
+		}
+
+		IsBusy = true;
+		var progressHandler = new Progress<InstallProgressReport>(report => _messenger.Send(new ProgressReportMessage(report)));
+		IProgress<InstallProgressReport> progress = progressHandler;
+
+		try
+		{
+			var installDir = GarrysModUtility.GetThisInstallFolder();
+			if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir))
+			{
+				throw new DirectoryNotFoundException("Could not find a valid RTX GMod installation directory.");
+			}
+
+			var sourceInfo = _patchSources[SelectedSource];
+			await _patchingService.ApplyPatchesAsync(sourceInfo.Owner, sourceInfo.Repo, sourceInfo.FilePath, installDir, progress);
+		}
+		catch (Exception ex)
+		{
+			progress.Report(new InstallProgressReport { Message = $"FATAL ERROR: {ex.Message}", Percentage = 100 });
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 }
 
