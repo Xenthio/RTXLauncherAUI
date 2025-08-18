@@ -16,4 +16,8 @@ public class SettingsData
 	[XmlAttribute] public int DXLevel { get; set; } = 90;
 	[XmlAttribute] public string CustomLaunchOptions { get; set; } = "";
 	[XmlAttribute] public string ManuallySpecifiedInstallPath { get; set; } = "";
+
+	// Launcher settings
+	[XmlAttribute] public bool CheckForUpdatesOnLaunch { get; set; } = true;
+	[XmlAttribute] public string Theme { get; set; } = "Simple";
 }

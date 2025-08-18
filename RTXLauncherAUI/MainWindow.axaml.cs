@@ -5,12 +5,11 @@ namespace RTXLauncherAUI;
 
 public partial class MainWindow : Window
 {
-	public MainWindow()
+	public MainWindow(MainWindowViewModel vm)
 	{
 		InitializeComponent();
 
 		// The DataContext is now the main window's viewmodel
-		var vm = new MainWindowViewModel();
 		DataContext = vm;
 
 		this.Closing += (sender, args) => vm.OnWindowClosing();

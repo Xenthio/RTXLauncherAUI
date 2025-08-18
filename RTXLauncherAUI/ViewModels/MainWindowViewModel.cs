@@ -38,10 +38,10 @@ public partial class MainWindowViewModel : ViewModelBase
 	private readonly SettingsData _settingsData;
 
 
-	public MainWindowViewModel()
+	public MainWindowViewModel(SettingsService settingsService, SettingsData settingsData)
 	{
-		_settingsService = new SettingsService();
-		_settingsData = _settingsService.LoadSettings();
+		_settingsService = settingsService;
+		_settingsData = settingsData;
 
 		// Use the default singleton messenger instance
 		_messenger = WeakReferenceMessenger.Default;
@@ -76,9 +76,10 @@ public partial class MainWindowViewModel : ViewModelBase
 		{
 			new SettingsViewModel(_settingsData, quickInstallService, _messenger),
 			new MountingViewModel(mountingService, _messenger),
-			new AdvancedInstallViewModel(_messenger, gitHubService, packageInstallService, patchingService, installService, updateService), // Pass messenger
-            new AboutViewModel(_messenger, gitHubService)             // Pass messenger
-        };
+			new AdvancedInstallViewModel(_messenger, gitHubService, packageInstallService, patchingService, installService, updateService),
+			new AboutViewModel(_messenger, gitHubService),
+			new LauncherSettingsViewModel(_settingsData, _settingsService),
+		};
 		_selectedPage = Pages.FirstOrDefault();
 	}
 	public void OnWindowClosing()
